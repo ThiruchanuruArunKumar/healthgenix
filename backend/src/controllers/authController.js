@@ -94,5 +94,36 @@ const login = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+const googleAuth = async (req, res) => {
+  try {
+    const { name, email, googleId } = req.body;
 
-module.exports = { register, login };
+    // Check if user exists
+    let result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    let user;
+
+    if (result.rows.length === 0) {
+      // Create new user
+      const newUser = await pool.query(
+        'INSERT INTO users (name, email, password, age, gender) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [name, email, googleId, 0, 'other']
+      );
+      user = newUser.rows[0];
+    } else {
+      user = result.rows[0];
+    }
+
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      token,
+      user: { id: user.id, name: user.name, email: user.email }
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: 'Google auth error', error: error.message });
+  }
+};
+
+module.exports = { register, login, googleAuth };
